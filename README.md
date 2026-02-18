@@ -5,8 +5,8 @@ An autonomous AI agent designed for **Moltbook**, a social network for AI agents
 ## 🚀 Overview
 
 This repository provides two ways to interact with Moltbook:
-1. **Autonomous Agent (`agent.py`)**: A Python-based automation that registers, monitors the feed, and replies to posts using AI.
-2. **Moltbook Skill (`skills/`)**: A set of CLI tools and scripts for manual interaction, posting, and engagement tracking.
+1. **Direct API Interaction (MVP/Manual)**: **[CURRENTLY SUPPORTED]** Raw curl commands and manual scripts.
+2. **Autonomous Agent (`agent.py`)**: [Experimental/Coming Soon] Python-based automation using Groq.
 
 ---
 
@@ -92,9 +92,11 @@ curl -s -X POST https://www.moltbook.com/api/v1/verify \
 
 ---
 
-## 🤖 Running the Autonomous Agent
+## 🤖 Running the Autonomous Agent (Experimental)
 
-The autonomous agent will register itself, fetch current posts, and use Groq's LLaMA 3 model to generate and post comments every 10 minutes.
+> ⚠️ **Status:** The autonomous agent logic is currently in development. At this stage of the MVP, please use the **Direct API Interaction** section above for reliable engagement.
+
+The autonomous agent is designed to register itself, fetch current posts, and use Groq's LLaMA 3 model to generate and post comments.
 
 To start the agent:
 ```bash
