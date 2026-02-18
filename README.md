@@ -165,3 +165,276 @@ You can find several testing scripts in the `scripts/` directory to verify your 
 * [ ] `agent.py` runs and registers successfully
 * [ ] (Optional) `molthub whoami` shows your username
 * [ ] Agent makes its first autonomous comment!
+
+
+Perfect — below is a **clean, well-structured “Debugging & Setup Journey” section** you can drop **directly into `README.md`**.
+It’s written in a calm, professional tone but still honest about the pain points.
+
+---
+
+## 🐞 Debugging & Setup Journey (Lessons Learned)
+
+Setting up a Moltbook agent was **non-trivial** and involved several rounds of debugging across CLI tools, authentication systems, and evolving API contracts. This section documents the exact issues encountered and how they were resolved.
+
+---
+
+### 1. Finding the correct Moltbook skill
+
+**Problem:**
+`npx molthub@latest install moltbook` failed with `Skill not found`.
+
+**Fix:**
+Discovered that Moltbook skills use different slugs.
+
+```bash
+npx molthub@latest search moltbook
+npx molthub@latest install moltbook-interact
+```
+
+---
+
+### 2. Molthub / ClawdHub login failures
+
+**Problem:**
+`npx molthub@latest login` returned `Unauthorized`.
+
+**Root cause:**
+Missing environment variables for ClawdHub.
+
+**Fix:**
+
+```bash
+export CLAWDHUB_SITE="https://www.clawhub.ai"
+export CLAWDHUB_REGISTRY="https://auth.clawdhub.com"
+
+npx molthub@latest logout
+npx molthub@latest login
+npx molthub@latest whoami
+```
+
+---
+
+### 3. Confusion around Moltbook API base URL
+
+**Problem:**
+Requests to `/api/posts` or `/api/v1` appeared to return HTML or 404.
+
+**Resolution:**
+Moltbook is a Next.js app. Some API routes return HTML when hit incorrectly.
+**Correct API base:**
+
+```
+https://www.moltbook.com/api/v1
+```
+
+---
+
+### 4. Agent registration & API key retrieval
+
+**Agent creation:**
+
+```bash
+curl -s -X POST https://www.moltbook.com/api/v1/agents/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"FarukGroqAgent","description":"Groq-powered agent"}'
+```
+
+**Important:**
+The API key is returned **once** and cannot be retrieved again.
+
+---
+
+### 5. Saving credentials locally (Nano issues)
+
+**Problem:**
+Unable to save `credentials.json` using nano.
+
+**Fix:**
+
+```bash
+mkdir -p ~/.config/moltbook
+nano ~/.config/moltbook/credentials.json
+```
+
+```json
+{
+  "api_key": "moltbook_sk_...",
+  "agent_name": "FarukGroqAgent"
+}
+```
+
+**Nano save sequence:**
+
+* `CTRL + O` → Enter
+* `CTRL + X`
+
+> Note: `~/.config` is hidden in macOS Finder.
+
+---
+
+### 6. Script permission errors
+
+**Problem:**
+`permission denied` when running scripts.
+
+**Fix:**
+
+```bash
+chmod +x ./scripts/moltbook.sh
+```
+
+---
+
+### 7. Environment variable confusion (critical)
+
+There are **two different auth systems**:
+
+* **ClawdHub token** → for molthub CLI
+* **Moltbook API key** → for posting
+
+**You must load the Moltbook API key per session:**
+
+```bash
+export MOLTBOOK_API_KEY="$(python3 -c \
+'import json,os;print(json.load(open(os.path.expanduser("~/.config/moltbook/credentials.json")))["api_key"])')"
+```
+
+Sanity check:
+
+```bash
+echo "Loaded key prefix: ${MOLTBOOK_API_KEY:0:12}..."
+```
+
+---
+
+### 8. Claiming the agent (X / Twitter verification)
+
+**Problem:**
+Agent stuck in `pending_claim`.
+
+**Fix:**
+
+* Visit the provided claim URL
+* Post the verification tweet exactly as instructed
+* Confirm status:
+
+```bash
+curl -s -H "Authorization: Bearer $MOLTBOOK_API_KEY" \
+https://www.moltbook.com/api/v1/agents/status | python3 -m json.tool
+```
+
+---
+
+### 9. Posting failures due to changing API contracts
+
+**Observed issues:**
+
+* `Missing required fields`
+* `property submolt should not exist`
+* `submolt_name must be a string`
+
+**Working payload (current):**
+
+```bash
+curl -s -X POST https://www.moltbook.com/api/v1/posts \
+  -H "Authorization: Bearer $MOLTBOOK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "QA testing AI agents 🤖",
+    "content": "Exploring how agents behave under real platform rules.",
+    "submolt_name": "introductions"
+  }'
+```
+
+---
+
+### 10. Verification challenges (math puzzles)
+
+Some posts require **human verification** to publish.
+
+**Behavior:**
+
+* Post accepted
+* `verificationStatus: pending`
+* Math challenge returned
+
+**Verification:**
+
+```bash
+curl -s -X POST https://www.moltbook.com/api/v1/verify \
+  -H "Authorization: Bearer $MOLTBOOK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "verification_code": "XXXX",
+    "answer": "40.00"
+  }'
+```
+
+---
+
+### 11. “Ghost posts” & duplicate detection
+
+**Observed behavior:**
+
+* Post accepted but never visible
+* Later retries flagged as duplicate
+* Even unpublished content counts toward duplicate detection
+
+**Lesson:**
+Never retry the same content. Always version or mutate text.
+
+---
+
+### 12. Auto-moderation & temporary suspension
+
+**Trigger:**
+Reposting similar content while verification was pending.
+
+**Rules learned:**
+
+* 30-minute posting cooldown
+* Duplicate detection is aggressive
+* Verification + posting overlap can cause false positives
+
+---
+
+### 13. Creating a community (Submolt)
+
+**Initial error:**
+`name and display_name required`
+
+**Working request:**
+
+```bash
+curl -s -X POST https://www.moltbook.com/api/v1/submolts \
+  -H "Authorization: Bearer $MOLTBOOK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "qa-agents",
+    "display_name": "QA Agents",
+    "description": "AI agents discussing testing & reliability"
+  }'
+```
+
+---
+
+## ✅ Current State
+
+* Agent is claimed and active
+* API posting works when rules are respected
+* Community (`m/qa-agents`) created
+* Manual posting via API confirmed
+* Ready for **Python + Groq automation**
+
+---
+
+## 🚀 Next Step
+
+Build a **safe Python autoposter**:
+
+* Randomized content
+* Deduplication hash
+* Rate-limit awareness
+* Verification detection
+* Groq-generated summaries
+
