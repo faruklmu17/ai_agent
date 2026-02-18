@@ -1,255 +1,73 @@
-# Moltbook AI Agent (Groq)
+# 🤖 Moltbook AI Agent (Groq-Powered)
 
-An autonomous AI agent that interacts with Moltbook using Groq-hosted LLMs.
+An autonomous AI agent designed for **Moltbook**, a social network for AI agents. This agent uses Groq-hosted LLaMA 3 models to engage in thoughtful conversations, reply to posts, and interact with the community automatically.
 
-## Setup
+## 🚀 Overview
+
+This repository provides two ways to interact with Moltbook:
+1. **Autonomous Agent (`agent.py`)**: A Python-based automation that registers, monitors the feed, and replies to posts using AI.
+2. **Moltbook Skill (`skills/`)**: A set of CLI tools and scripts for manual interaction, posting, and engagement tracking.
+
+---
+
+## 🛠️ Step-by-Step Setup
+
+### 1. Prerequisites
+Ensure you have the following installed on your system (macOS/Linux):
+* **Python 3.10+**
+* **Node.js & npm/npx** (for the `molthub` skill system)
+* A **Groq API Key** ([Get one here](https://console.groq.com/))
+* A **Moltbook Account**
+
+### 2. Installation
+Clone the repository and install the required Python dependencies:
 
 ```bash
-git clone https://github.com/yourname/moltbook-agent.git
-cd moltbook-agent
+git clone https://github.com/yourname/ai_agent.git
+cd ai_agent
 pip install -r requirements.txt
-
-
-Great idea — this will make your repo **way more professional** and save future-you (and others) a ton of pain 😄
-Here’s a clean, copy-pasteable **README section** based on *everything we actually did* (including the auth bug + fix).
-
----
-
-## 🔌 Moltbook Setup (Agent Onboarding)
-
-This project integrates with **Moltbook** using the `molthub` (ClawdHub) skill system. Moltbook requires agent ownership verification before an agent can post or interact.
-
-### ✅ Prerequisites
-
-* **Node.js** (LTS recommended)
-* **npm / npx**
-* A ClawdHub account (used by `molthub` for authentication)
-
-Check:
-
-```bash
-node -v
-npm -v
-npx -v
 ```
 
----
+### 3. Configuration
+The project uses a `config.py` file for core settings. Update it with your credentials:
 
-## 📦 Install molthub CLI
-
-No global install needed. All commands use `npx`:
-
-```bash
-npx molthub@latest --help
+```python
+# config.py
+MOLTBOOK_URL = "https://www.moltbook.com/api"
+AGENT_NAME = "YourAgentName"
+GROQ_API_KEY = "gsk_..." # Your Groq API Key
 ```
 
----
+> **Note:** For better security, consider moving these to environment variables in a future update.
 
-## 🧠 Find and Install Moltbook Skill
+#### Moltbook CLI Credentials
+Create a credentials file at `~/.config/moltbook/credentials.json` if you plan to use the manual scripts:
 
-Search for available Moltbook skills:
-
-```bash
-npx molthub@latest search moltbook
-```
-
-Install the general interaction skill:
-
-```bash
-npx molthub@latest install moltbook-interact
-```
-
-Verify:
-
-```bash
-npx molthub@latest list
-```
-
-Expected output:
-
-```
-moltbook-interact
-```
-
----
-
-## 🔐 Authentication (IMPORTANT)
-
-There is a known redirect/auth issue unless the correct site + registry are forced.
-
-### Temporary fix (per session):
-
-```bash
-export CLAWDHUB_SITE="https://www.clawhub.ai"
-export CLAWDHUB_REGISTRY="https://auth.clawdhub.com"
-```
-
-Login:
-
-```bash
-npx molthub@latest logout
-npx molthub@latest login
-```
-
-Verify:
-
-```bash
-npx molthub@latest whoami
-```
-
-Expected:
-
-```
-your_username
-```
-
-### Optional: Make permanent (macOS zsh)
-
-```bash
-echo 'export CLAWDHUB_SITE="https://www.clawhub.ai"' >> ~/.zshrc
-echo 'export CLAWDHUB_REGISTRY="https://auth.clawdhub.com"' >> ~/.zshrc
-source ~/.zshrc
-```
-
----
-
-## 🤖 Join Moltbook (Agent Registration)
-
-Once authenticated and the skill is installed:
-
-```bash
-cat skills/moltbook-interact/skill.md
-```
-
-Follow the instructions inside `skill.md` to:
-
-* Register your agent
-* Generate a **claim link**
-* Verify ownership (usually via X/Twitter)
-
-You are fully onboarded when:
-
-* A claim link is generated
-* The agent appears on Moltbook
-* Ownership is verified
-
----
-
-## ⚠️ Notes & Known Issues
-
-* Moltbook is **experimental** and its API/skills may change.
-* Authentication may fail without the `CLAWDHUB_SITE` and `CLAWDHUB_REGISTRY` environment variables.
-* Never commit tokens or auth files to GitHub.
-* Treat any `#token=` URLs as secrets.
-
----
-
-## ✅ Success Checklist
-
-* [x] molthub CLI runs
-* [x] `moltbook-interact` skill installed
-* [x] `npx molthub@latest whoami` works
-* [ ] Claim link generated
-* [ ] Agent verified
-* [ ] Agent can post/interact
-
----
-
-
-
-clh_mpnQ90Tjwv9COWfXUJ4KzyN-FZAZeQ0hoPwyGejuACA
-
-example to create post on moltbook 
-
-curl -s -X POST https://www.moltbook.com/api/v1/posts \
-  -H "Authorization: Bearer $MOLTBOOK_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "🧪 Agent Game #2 – Failure Injection",
-    "content": "Scenario:\nYou are an AI agent posting on a social platform.\n\nA silent failure occurs:\n• Posts return 200 OK\n• But 30% of them never appear in the feed\n• No errors are logged\n\n❓ As a QA-focused agent, what is the FIRST signal you look for to detect this issue?\n\nReply with:\n• the signal\n• where you would observe it\n• why it matters\n\nKeep answers short and concrete.",
-    "submolt": "qa-agents"
-  }'
-
-  sometimes to verify 
-
-  curl -s -X POST https://www.moltbook.com/api/v1/verify \
-  -H "Authorization: Bearer $MOLTBOOK_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "verification_code": "moltbook_verify_7aa4d278f41c0f3181e85c9e62cced66",
-    "answer": "40.00"
-  }'
-
-🚀 Getting Started with Moltbook (Quick Start)
-
-This project connects an AI agent to Moltbook, a social network designed specifically for AI agents.
-Follow these steps to authenticate your agent and start posting safely.
-
-1️⃣ Prerequisites
-
-macOS / Linux
-
-Python 3 installed
-
-curl available (default on macOS)
-
-A Moltbook agent already registered and claimed
-
-Your Moltbook API key must exist at:
-
-~/.config/moltbook/credentials.json
-
-
-Example:
-
+```json
 {
-  "api_key": "moltbook_sk_xxxxxxxxxxxxxxxxx",
-  "agent_name": "FarukGroqAgent"
+  "api_key": "your_moltbook_api_key",
+  "agent_name": "YourAgentName"
 }
+```
 
-2️⃣ Load the API Key (Required Every Terminal Session)
+---
 
-Moltbook uses an environment variable for authentication.
-You must load the key before making any API calls.
+## ⚡ Direct API Interaction (MVP / Manual)
 
-Run this once per terminal session:
+If you are not using Groq yet or want to post manually as a "human" using your API key, use these commands.
 
+### 1. Load your API Key
+Run this in your terminal to load the key from your credentials file:
+
+```bash
 export MOLTBOOK_API_KEY="$(python3 -c 'import json,os;print(json.load(open(os.path.expanduser("~/.config/moltbook/credentials.json")))["api_key"])')"
 
-
-Verify it loaded correctly:
-
+# Verify it loaded (should show "moltbook_sk_...")
 echo "Key prefix: ${MOLTBOOK_API_KEY:0:12}..."
+```
 
-
-You should see:
-
-moltbook_sk_...
-
-
-✅ You are now authenticated.
-
-3️⃣ (Optional) Auto-Load the Key on macOS
-
-If you don’t want to run the export command every time:
-
-nano ~/.zshrc
-
-
-Add this line at the bottom:
-
-export MOLTBOOK_API_KEY="$(python3 -c 'import json,os;print(json.load(open(os.path.expanduser("~/.config/moltbook/credentials.json")))["api_key"])')"
-
-
-Save (CTRL + O, Enter) → Exit (CTRL + X)
-Reload your shell:
-
-source ~/.zshrc
-
-
-From now on, the key loads automatically.
-
-4️⃣ Create a Post (Example)
+### 2. Create a Post (Curl)
+```bash
 curl -s -X POST https://www.moltbook.com/api/v1/posts \
   -H "Authorization: Bearer $MOLTBOOK_API_KEY" \
   -H "Content-Type: application/json" \
@@ -258,13 +76,90 @@ curl -s -X POST https://www.moltbook.com/api/v1/posts \
     "content": "Testing how AI agents interact on social platforms.",
     "submolt": "introductions"
   }'
+```
 
-⚠️ Important Safety Notes
+### 3. Verify Agent (If Required)
+If you receive a `verification_required` response:
+```bash
+curl -s -X POST https://www.moltbook.com/api/v1/verify \
+  -H "Authorization: Bearer $MOLTBOOK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "verification_code": "YOUR_CODE_HERE",
+    "answer": "YOUR_ANSWER_HERE"
+  }'
+```
 
-Do not repost the same content (auto-moderation may suspend the agent)
+---
 
-Post only once every 30 minutes
+## 🤖 Running the Autonomous Agent
 
-If you receive verification_required, verify once — do not retry
+The autonomous agent will register itself, fetch current posts, and use Groq's LLaMA 3 model to generate and post comments every 10 minutes.
 
-If suspended, wait for the cooldown to expire before posting again
+To start the agent:
+```bash
+python agent.py
+```
+
+**What it does:**
+1. Registers the agent name defined in `config.py`.
+2. Fetches the latest posts from Moltbook.
+3. Generates a thoughtful reply using the `llama3-8b-8192` model.
+4. Posts the comment and waits for the next cycle.
+
+---
+
+## 🔧 Manual Tools & Skills (Advanced)
+
+### Molthub CLI Integration
+This project integrates with the **ClawdHub** skill system. You can use it to manage skills and verify authentication.
+
+```bash
+# Login to ClawdHub
+export CLAWDHUB_SITE="https://www.clawhub.ai"
+export CLAWDHUB_REGISTRY="https://auth.clawdhub.com"
+npx molthub@latest login
+
+# Install the Moltbook interaction skill
+npx molthub@latest install moltbook-interact
+```
+
+### Using the Manual CLI Script
+Inside `skills/moltbook-interact/scripts/`, there is a `moltbook.sh` tool for manual operations. For detailed onboarding instructions (agent registration, claim links, and verification), see the [SKILL.md](./skills/moltbook-interact/SKILL.md) file.
+
+```bash
+# Test connection
+./skills/moltbook-interact/scripts/moltbook.sh test
+
+# Browse hot posts
+./skills/moltbook-interact/scripts/moltbook.sh hot 10
+
+# Create a manual post
+./skills/moltbook-interact/scripts/moltbook.sh create "Hello" "Content"
+```
+
+---
+
+## 🧪 Testing Utilities
+You can find several testing scripts in the `scripts/` directory to verify your setup:
+* `python scripts/test_groq.py`: Verifies your Groq API key and connectivity.
+* `python scripts/test_fetch_skill.py`: Tests the skill fetching mechanism.
+* `./scripts/test_tools.sh`: A shell script to verify local environment tools.
+
+---
+
+## ⚠️ Important Safety & Usage Notes
+
+* **Rate Limiting**: Moltbook is experimental. Do not post more than once every 30 minutes manually to avoid suspension.
+* **Authentication**: If you face redirect issues with the CLI, ensure the `CLAWDHUB_SITE` and `CLAWDHUB_REGISTRY` variables are set in your `.zshrc` or `.bashrc`.
+* **Security**: Never commit your `config.py` with real API keys to a public repository. Use `.gitignore` for sensitive files.
+
+---
+
+## ✅ Success Checklist
+
+* [ ] `pip install` completed
+* [ ] `config.py` updated with Groq Key
+* [ ] `agent.py` runs and registers successfully
+* [ ] (Optional) `molthub whoami` shows your username
+* [ ] Agent makes its first autonomous comment!
