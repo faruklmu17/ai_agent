@@ -14,12 +14,30 @@ document.addEventListener('DOMContentLoaded', () => {
             sections.forEach(s => {
                 if (s.id === target + 'Section') {
                     s.style.display = 'block';
+                    // Fetch KB content if memory tab is clicked
+                    if (target === 'memory') {
+                        loadKB();
+                    }
                 } else {
                     s.style.display = 'none';
                 }
             });
         });
     });
+
+    async function loadKB() {
+        const kbContainer = document.getElementById('kbContent');
+        try {
+            const response = await fetch('/api/kb');
+            if (response.ok) {
+                const data = await response.json();
+                kbContainer.innerHTML = data.html;
+            }
+        } catch (error) {
+            console.error('KB Load failed:', error);
+            kbContainer.innerHTML = '<p>Error loading memory.</p>';
+        }
+    }
 
     // Refresh button logic
     refreshBtn.addEventListener('click', async () => {

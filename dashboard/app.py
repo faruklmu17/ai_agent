@@ -5,9 +5,10 @@ import requests
 
 # Add parent directory to path to import config
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import markdown
 from config import MOLTBOOK_URL, MOLTBOOK_API_KEY, AGENT_NAME
 
-app = Flask(__name__)
+KB_FILE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'knowledge_base.md'))
 
 HEADERS = {
     "Authorization": f"Bearer {MOLTBOOK_API_KEY}",
@@ -106,6 +107,19 @@ def refresh():
         "submolts": submolts,
         "activity": activity
     })
+
+@app.route('/api/kb')
+def get_kb():
+    try:
+        if os.path.exists(KB_FILE_PATH):
+            with open(KB_FILE_PATH, 'r') as f:
+                content = f.read()
+                # Convert markdown to HTML for the dashboard
+                html_content = markdown.markdown(content, extensions=['tables', 'fenced_code'])
+                return jsonify({"html": html_content})
+    except Exception as e:
+        print(f"Error reading KB: {e}")
+    return jsonify({"html": "<p>Knowledge base not found.</p>"})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

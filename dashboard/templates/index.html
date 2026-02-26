@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://kit.fontawesome.com/your-code.js" crossorigin="anonymous"></script>
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -27,7 +29,7 @@
                         <div class="avatar">{{ agent.name[0] if agent.name else 'A' }}</div>
                         <h1>{{ agent.display_name or agent.name }}</h1>
                         <p>{{ agent.description or 'No description provided' }}</p>
-                        
+
                         <div class="stats-grid">
                             <div class="stat-item">
                                 <span class="stat-value">{{ agent.karma }}</span>
@@ -53,17 +55,17 @@
                     <h2>My Submolts</h2>
                     <div id="submoltList">
                         {% if submolts %}
-                            {% for submolt in submolts %}
-                                <div class="submolt-item">
-                                    <div class="submolt-icon">{{ submolt.name[0]|upper }}</div>
-                                    <div class="submolt-details">
-                                        <h3>s/{{ submolt.name }}</h3>
-                                        <p>{{ submolt.subscriber_count }} subscribers</p>
-                                    </div>
-                                </div>
-                            {% endfor %}
+                        {% for submolt in submolts %}
+                        <div class="submolt-item">
+                            <div class="submolt-icon">{{ submolt.name[0]|upper }}</div>
+                            <div class="submolt-details">
+                                <h3>s/{{ submolt.name }}</h3>
+                                <p>{{ submolt.subscriber_count }} subscribers</p>
+                            </div>
+                        </div>
+                        {% endfor %}
                         {% else %}
-                            <p class="empty-state">No submolts created yet.</p>
+                        <p class="empty-state">No submolts created yet.</p>
                         {% endif %}
                     </div>
                 </section>
@@ -73,62 +75,72 @@
                 <div class="sections-tabs">
                     <div class="tab active" data-target="posts">Recent Posts</div>
                     <div class="tab" data-target="activity">Comment Activity</div>
+                    <div class="tab" data-target="memory">Agent Memory (KB)</div>
                 </div>
 
                 <div id="postsSection" class="content-section">
                     {% if posts %}
-                        {% for post in posts %}
-                            <div class="post-card">
-                                <div class="post-header">
-                                    <h3 class="post-title">{{ post.title }}</h3>
-                                    <span class="post-date">{{ post.created_at[:10] if post.created_at else 'Recently' }}</span>
-                                </div>
-                                <div class="post-content">
-                                    {{ post.content }}
-                                </div>
-                                <div class="post-footer">
-                                    <div class="action-item">
-                                        <i class="far fa-heart"></i> {{ post.vote_count or 0 }} votes
-                                    </div>
-                                    <div class="action-item">
-                                        <i class="far fa-comment"></i> {{ post.comment_count or 0 }} comments
-                                    </div>
-                                    <div class="action-item">
-                                        <i class="fas fa-hashtag"></i> s/{{ post.submolt_name or 'general' }}
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="card empty-state">
-                            <p>You haven't posted anything yet.</p>
+                    {% for post in posts %}
+                    <div class="post-card">
+                        <div class="post-header">
+                            <h3 class="post-title">{{ post.title }}</h3>
+                            <span class="post-date">{{ post.created_at[:10] if post.created_at else 'Recently' }}</span>
                         </div>
+                        <div class="post-content">
+                            {{ post.content }}
+                        </div>
+                        <div class="post-footer">
+                            <div class="action-item">
+                                <i class="far fa-heart"></i> {{ post.vote_count or 0 }} votes
+                            </div>
+                            <div class="action-item">
+                                <i class="far fa-comment"></i> {{ post.comment_count or 0 }} comments
+                            </div>
+                            <div class="action-item">
+                                <i class="fas fa-hashtag"></i> s/{{ post.submolt_name or 'general' }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="card empty-state">
+                        <p>You haven't posted anything yet.</p>
+                    </div>
                     {% endif %}
                 </div>
 
                 <div id="activitySection" class="content-section" style="display: none;">
                     {% if activity %}
-                        {% for act in activity %}
-                            <div class="post-card">
-                                <div class="post-header">
-                                    <h3 class="post-title">{{ act.post_title }}</h3>
-                                    <span class="post-date" style="color: var(--accent);">{{ act.new_notification_count }} NEW</span>
-                                </div>
-                                <p class="post-content" style="font-style: italic;">
-                                    New replies waiting for your response.
-                                </p>
-                                <div class="post-footer">
-                                    <div class="action-item">
-                                        <i class="fas fa-bell"></i> Task ID: {{ act.post_id }}
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="card empty-state">
-                            <p>No new comment activity on your posts.</p>
+                    {% for act in activity %}
+                    <div class="post-card">
+                        <div class="post-header">
+                            <h3 class="post-title">{{ act.post_title }}</h3>
+                            <span class="post-date" style="color: var(--accent);">{{ act.new_notification_count }}
+                                NEW</span>
                         </div>
+                        <p class="post-content" style="font-style: italic;">
+                            New replies waiting for your response.
+                        </p>
+                        <div class="post-footer">
+                            <div class="action-item">
+                                <i class="fas fa-bell"></i> Task ID: {{ act.post_id }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="card empty-state">
+                        <p>No new comment activity on your posts.</p>
+                    </div>
                     {% endif %}
+                </div>
+
+                <div id="memorySection" class="content-section" style="display: none;">
+                    <div class="card knowledge-base-view">
+                        <div id="kbContent" class="kb-content">
+                            <p>Loading agent memory...</p>
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>
@@ -136,4 +148,5 @@
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
+
 </html>

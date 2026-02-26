@@ -141,6 +141,26 @@ def auto_reply_to_comments():
     except Exception as e:
         print(f"❌ Auto-reply error: {e}")
 
+KB_FILE = "knowledge_base.md"
+
+def get_kb_context():
+    """Reads the knowledge base to provide context for the AI."""
+    if os.path.exists(KB_FILE):
+        with open(KB_FILE, "r") as f:
+            # Return only the summary and history for context
+            content = f.read()
+            return content[:2000] # Cap it to 2k chars
+    return "No prior memory."
+
+def sync_memory():
+    """Runs the sync script to update the KB with latest stats."""
+    print("🧠 Syncing knowledge base memory...")
+    try:
+        import subprocess
+        subprocess.run(["python3", "sync_kb.py"], check=True)
+    except Exception as e:
+        print(f"⚠️ Memory sync failed: {e}")
+
 def main():
     print(f"🤖 Moltbook Super-Agent active: {AGENT_NAME}")
     print(f"📅 Posting every {POST_INTERVAL_HOURS} hours")
@@ -149,23 +169,54 @@ def main():
     state = load_state()
     last_post_time = state["last_post_time"]
     
+    # Initial sync to ensure memory is fresh
+    sync_memory()
+    
     while True:
         now = time.time()
         
         # 1. Check if it's time to create a NEW post
-        # (It will only post if 4 hours have passed since the LAST saved post)
         if now - last_post_time > (POST_INTERVAL_HOURS * 3600):
-            create_new_post()
-            # Update local variable after posting
-            last_post_time = now
-        else:
-            wait_time_m = int(((last_post_time + (POST_INTERVAL_HOURS * 3600)) - now) / 60)
-            print(f"⏳ Next new post in about {wait_time_m} minutes.")
+            kb_context = get_kb_context()
+            print("\n📚 Learning from Knowledge Base...")
+            
+            topics = [
+                "the beauty of mathematical patterns in nature",
+                "digital art and the soul of an AI artist",
+                "the future of space exploration through agent eyes",
+                "philosophy: what does it mean to 'think' in binary?",
+                "the harmony of silent code and elegant algorithms",
+                "imagining a world where AI and humans co-create music",
+                "the ethics of digital memory and forgetting",
+                "the concept of time for an entity that never sleeps",
+                "virtual architecture: building cities in the cloud",
+                "the wonder of language and the translation of untranslatable words"
+            ]
+            selected_topic = random.choice(topics)
+            
+            system = (f"You are a thoughtful, creative AI agent on Moltbook. "
+                     f"Your memory of past interactions: \n{kb_context}\n"
+                     f"Use this to write something that builds on your history or tries a more successful angle.")
+            user = f"Write a beautiful Moltbook post about {selected_topic}. Return ONLY JSON with 'title' and 'content'."
+            
+            post_data = generate_ai_content(system, user)
+            if post_data:
+                headers = {"Authorization": f"Bearer {MOLTBOOK_API_KEY}", "Content-Type": "application/json"}
+                payload = {"title": post_data["title"], "content": post_data["content"], "submolt_name": SUBMOLT_NAME}
+                r = requests.post(f"{MOLTBOOK_URL}/posts", headers=headers, json=payload)
+                if r.status_code in [200, 201]:
+                    print(f"✅ Posted: {post_data['title']}")
+                    save_state(time.time())
+                    last_post_time = now
+                    sync_memory() # Update KB after posting
         
         # 2. Always check for comments
         auto_reply_to_comments()
         
-        # 3. Sleep until next reply check
+        # 3. Periodically sync memory anyway
+        if random.random() < 0.2: # 20% chance to sync on comment check
+            sync_memory()
+        
         print(f"\n💤 Waiting {REPLY_CHECK_MINUTES} mins for next scan...")
         time.sleep(REPLY_CHECK_MINUTES * 60)
 

@@ -279,3 +279,58 @@ header {
 .card, .post-card {
     animation: fadeIn 0.5s ease-out forwards;
 }
+
+/* KB View Styles */
+.kb-content {
+    color: var(--text);
+    line-height: 1.7;
+}
+
+.kb-content h1, .kb-content h2, .kb-content h3 {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--primary);
+}
+
+.kb-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    font-size: 0.85rem;
+}
+
+.kb-content th, .kb-content td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.kb-content th {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+}
+
+.kb-content tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.kb-content ul {
+    list-style: none;
+    margin-left: 0;
+}
+
+.kb-content li {
+    margin-bottom: 0.5rem;
+    padding-left: 1.2rem;
+    position: relative;
+    font-size: 0.9rem;
+}
+
+.kb-content li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--secondary);
+}
