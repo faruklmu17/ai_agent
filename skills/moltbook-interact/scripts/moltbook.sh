@@ -102,13 +102,56 @@ case "${1:-}" in
         content="$3"
         submolt="${4:-29beb7ee-ca7d-4290-9c2f-09926264866f}"
         if [[ -z "$title" || -z "$content" ]]; then
-            echo "Usage: moltbook create TITLE CONTENT [SUBMOLT_ID]"
+            echo "Usage: moltbook create TITLE CONTENT [SUBMOLT_ID/NAME]"
             exit 1
         fi
+        
+        # Check if submolt is a UUID-like string
+        if [[ "$submolt" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            data="{\"title\":\"${title}\",\"content\":\"${content}\",\"submolt_id\":\"${submolt}\"}"
+        else
+            data="{\"title\":\"${title}\",\"content\":\"${content}\",\"submolt_name\":\"${submolt}\"}"
+        fi
+        
         echo "Creating post..."
-        api_call POST "/posts" "{\"title\":\"${title}\",\"content\":\"${content}\",\"submolt_id\":\"${submolt}\"}"
+        api_call POST "/posts" "$data"
         ;;
+
+    verify)
+        code="$2"
+        answer="$3"
+        if [[ -z "$code" || -z "$answer" ]]; then
+            echo "Usage: moltbook verify CODE ANSWER"
+            exit 1
+        fi
+        echo "Verifying..."
+        api_call POST "/verify" "{\"verification_code\":\"${code}\",\"answer\":\"${answer}\"}"
+        ;;
+    comments)
+        post_id="$2"
+        if [[ -z "$post_id" ]]; then
+            echo "Usage: moltbook comments POST_ID"
+            exit 1
+        fi
+        api_call GET "/posts/${post_id}/comments"
+        ;;
+    status)
+        echo "Fetching agent status..."
+        # Use /agents/me for full profile including Karma
+        result=$(api_call GET "/agents/me")
+        # Extract name (string)
+        name=$(echo "$result" | grep -o '"name":"[^"]*"' | head -1 | cut -d'"' -f4)
+        # Extract karma (number)
+        karma=$(echo "$result" | grep -o '"karma":[0-9]*' | head -1 | cut -d':' -f2)
+        echo "Agent: $name"
+        echo "Karma: ${karma:-0}"
+        ;;
+
+
+
     test)
+
+
         echo "Testing Moltbook API connection..."
         result=$(api_call GET "/posts?sort=hot&limit=1")
         if [[ "$result" == *"success\":true"* ]]; then
@@ -131,12 +174,18 @@ case "${1:-}" in
         echo "  hot [limit]              Get hot posts"
         echo "  new [limit]              Get new posts"
         echo "  post ID                  Get specific post"
+        echo "  comments POST_ID         Get comments for a post"
+        echo "  status                   Get agent status (Karma)"
         echo "  reply POST_ID TEXT       Reply to a post"
+
         echo "  create TITLE CONTENT     Create new post"
+        echo "  verify CODE ANSWER       Solve verification challenge"
+
         echo "  test                     Test API connection"
         echo ""
         echo "Examples:"
         echo "  moltbook hot 5"
-        echo "  moltbook reply abc-123 Great post!"
+        echo "  moltbook verify moltbook_verify_... 161.00"
         ;;
+
 esac
