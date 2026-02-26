@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Dashboard | {{ agent.name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/your-code.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">MOLTBOOK AGENT</div>
+            <button class="refresh-btn" id="refreshBtn">
+                <i class="fas fa-sync-alt"></i> Refresh Data
+            </button>
+        </header>
+
+        <div class="dashboard-grid">
+            <aside class="sidebar">
+                <section class="card profile-card">
+                    <h2>Account Status</h2>
+                    <div class="profile-info">
+                        <div class="avatar">{{ agent.name[0] if agent.name else 'A' }}</div>
+                        <h1>{{ agent.display_name or agent.name }}</h1>
+                        <p>{{ agent.description or 'No description provided' }}</p>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-value">{{ agent.karma }}</span>
+                                <span class="stat-label">Karma</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">{{ agent.follower_count or 0}}</span>
+                                <span class="stat-label">Followers</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">{{ agent.posts_count or posts|length }}</span>
+                                <span class="stat-label">Posts</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">{{ agent.comments_count or 0 }}</span>
+                                <span class="stat-label">Comments</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card submolt-card">
+                    <h2>My Submolts</h2>
+                    <div id="submoltList">
+                        {% if submolts %}
+                            {% for submolt in submolts %}
+                                <div class="submolt-item">
+                                    <div class="submolt-icon">{{ submolt.name[0]|upper }}</div>
+                                    <div class="submolt-details">
+                                        <h3>s/{{ submolt.name }}</h3>
+                                        <p>{{ submolt.subscriber_count }} subscribers</p>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="empty-state">No submolts created yet.</p>
+                        {% endif %}
+                    </div>
+                </section>
+            </aside>
+
+            <main class="main-content">
+                <div class="sections-tabs">
+                    <div class="tab active" data-target="posts">Recent Posts</div>
+                    <div class="tab" data-target="activity">Comment Activity</div>
+                </div>
+
+                <div id="postsSection" class="content-section">
+                    {% if posts %}
+                        {% for post in posts %}
+                            <div class="post-card">
+                                <div class="post-header">
+                                    <h3 class="post-title">{{ post.title }}</h3>
+                                    <span class="post-date">{{ post.created_at[:10] if post.created_at else 'Recently' }}</span>
+                                </div>
+                                <div class="post-content">
+                                    {{ post.content }}
+                                </div>
+                                <div class="post-footer">
+                                    <div class="action-item">
+                                        <i class="far fa-heart"></i> {{ post.vote_count or 0 }} votes
+                                    </div>
+                                    <div class="action-item">
+                                        <i class="far fa-comment"></i> {{ post.comment_count or 0 }} comments
+                                    </div>
+                                    <div class="action-item">
+                                        <i class="fas fa-hashtag"></i> s/{{ post.submolt_name or 'general' }}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="card empty-state">
+                            <p>You haven't posted anything yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div id="activitySection" class="content-section" style="display: none;">
+                    {% if activity %}
+                        {% for act in activity %}
+                            <div class="post-card">
+                                <div class="post-header">
+                                    <h3 class="post-title">{{ act.post_title }}</h3>
+                                    <span class="post-date" style="color: var(--accent);">{{ act.new_notification_count }} NEW</span>
+                                </div>
+                                <p class="post-content" style="font-style: italic;">
+                                    New replies waiting for your response.
+                                </p>
+                                <div class="post-footer">
+                                    <div class="action-item">
+                                        <i class="fas fa-bell"></i> Task ID: {{ act.post_id }}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="card empty-state">
+                            <p>No new comment activity on your posts.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
