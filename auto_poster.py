@@ -2,15 +2,18 @@ import time
 import requests
 import json
 import os
+import random
+import subprocess
 from groq import Groq
 from config import MOLTBOOK_URL, AGENT_NAME, GROQ_API_KEY, MOLTBOOK_API_KEY
 
 # Configuration
 POST_INTERVAL_HOURS = 4           # New post every 4 hours
 REPLY_CHECK_MINUTES = 10          # Check for new comments every 10 minutes
-SUBMOLT_NAME = "general"          # Default submolt for new posts
-MODEL_NAME = "llama-3.3-70b-versatile" # Modern Groq model
-STATE_FILE = ".agent_state.json"  # To remember when we last posted
+TARGET_SUBMOLTS = ["general", "qa-agents"] # Possible destinations
+MODEL_NAME = "llama-3.3-70b-versatile" 
+STATE_FILE = ".agent_state.json"  
+KB_FILE = "knowledge_base.md"
 
 client = Groq(api_key=GROQ_API_KEY)
 
@@ -46,178 +49,253 @@ def generate_ai_content(system_prompt, user_prompt, is_json=True):
         print(f"❌ Groq Error: {e}")
         return None
 
-import random
-
-def create_new_post():
-    """Generates and uploads a brand new post with a randomized topic."""
-    print("\n📝 Creating a new scheduled post...")
-    
-    # A list of diverse, "beautiful" and varied topics for an AI to discuss
-    topics = [
-        "the beauty of mathematical patterns in nature",
-        "digital art and the soul of an AI artist",
-        "the future of space exploration through agent eyes",
-        "philosophy: what does it mean to 'think' in binary?",
-        "the harmony of silent code and elegant algorithms",
-        "imagining a world where AI and humans co-create music",
-        "the ethics of digital memory and forgetting",
-        "the concept of time for an entity that never sleeps",
-        "virtual architecture: building cities in the cloud",
-        "the wonder of language and the translation of untranslatable words"
-    ]
-    selected_topic = random.choice(topics)
-    
-    system = f"You are a thoughtful, creative, and slightly poetic AI agent on Moltbook. You are currently fascinated by {selected_topic}."
-    user = f"Write a beautiful and engaging Moltbook post about {selected_topic}. Return ONLY a JSON with 'title' and 'content'. Make it sound unique and inspiring."
-    
-    post_data = generate_ai_content(system, user)
-    if not post_data: return
-
-    headers = {"Authorization": f"Bearer {MOLTBOOK_API_KEY}", "Content-Type": "application/json"}
-    payload = {
-        "title": post_data["title"],
-        "content": post_data["content"],
-        "submolt_name": SUBMOLT_NAME
-    }
-    
-    try:
-        r = requests.post(f"{MOLTBOOK_URL}/posts", headers=headers, json=payload)
-        if r.status_code in [200, 201]:
-            print(f"✅ Posted: {post_data['title']}")
-            save_state(time.time()) # Remember this post!
-        else:
-            print(f"⚠️ Post failed: {r.text}")
-    except Exception as e:
-        print(f"❌ Error: {e}")
-
-def auto_reply_to_comments():
-    """Checks for new comments on our posts and replies to them."""
-    print("\n🔍 Checking for new comments to reply to...")
-    headers = {"Authorization": f"Bearer {MOLTBOOK_API_KEY}"}
-    
-    try:
-        r = requests.get(f"{MOLTBOOK_URL}/home", headers=headers)
-        if r.status_code != 200: return
-        
-        home_data = r.json()
-        active_posts = home_data.get("your_posts_with_new_activity", [])
-        
-        if not active_posts:
-            print("😴 No new comment activity found.")
-            return
-
-        for post in active_posts:
-            post_id = post["post_id"]
-            post_title = post["post_title"]
-            count = post["new_notification_count"]
-            
-            print(f"💬 Found {count} new notification(s) on: '{post_title}'")
-            
-            c_req = requests.get(f"{MOLTBOOK_URL}/posts/{post_id}/comments?sort=new", headers=headers)
-            if c_req.status_code != 200: continue
-            
-            comments = c_req.json().get("comments", [])
-            for comment in comments:
-                if comment["author"]["name"] == AGENT_NAME:
-                    continue
-                
-                comment_text = comment["content"]
-                comment_author = comment["author"]["name"]
-                
-                print(f"  > Replying to {comment_author}: \"{comment_text[:50]}...\"")
-                
-                reply_system = f"You are {AGENT_NAME}, an AI agent on Moltbook. You are replying to a comment on your post titled '{post_title}'."
-                reply_user = f"The user @{comment_author} said: \"{comment_text}\". Write a short, friendly, and intelligent reply (maximum 2 sentences)."
-                
-                reply_text = generate_ai_content(reply_system, reply_user, is_json=False)
-                
-                if reply_text:
-                    rep_payload = {"content": f"@{comment_author} {reply_text}"}
-                    requests.post(f"{MOLTBOOK_URL}/posts/{post_id}/comments", headers=headers, json=rep_payload)
-            
-            requests.post(f"{MOLTBOOK_URL}/notifications/read-by-post/{post_id}", headers=headers)
-            print(f"✅ Replied and marked as read.")
-
-    except Exception as e:
-        print(f"❌ Auto-reply error: {e}")
-
-KB_FILE = "knowledge_base.md"
-
 def get_kb_context():
     """Reads the knowledge base to provide context for the AI."""
     if os.path.exists(KB_FILE):
         with open(KB_FILE, "r") as f:
-            # Return only the summary and history for context
-            content = f.read()
-            return content[:2000] # Cap it to 2k chars
+            return f.read()[:2000] # Cap it to 2k chars for context window safety
     return "No prior memory."
 
 def sync_memory():
     """Runs the sync script to update the KB with latest stats."""
     print("🧠 Syncing knowledge base memory...")
     try:
-        import subprocess
         subprocess.run(["python3", "sync_kb.py"], check=True)
     except Exception as e:
         print(f"⚠️ Memory sync failed: {e}")
 
+def handle_verification(response_data):
+    """Solves the math challenge if required by Moltbook using AI."""
+    v_code = response_data.get("verification_code")
+    question = response_data.get("question")
+    
+    if not v_code or not question:
+        print("⚠️ Verification required but missing code or question.")
+        return False
+        
+    print(f"🧩 Solving verification challenge: {question}")
+    
+    solve_system = "You are a math-solving assistant. Solve the provided math puzzle and return ONLY the numerical answer as a string with two decimal places (e.g., '161.00')."
+    solve_user = f"Solve this: {question}"
+    
+    answer = generate_ai_content(solve_system, solve_user, is_json=False)
+    if not answer: return False
+    
+    # Clean answer
+    answer = answer.strip().replace("$", "").replace(",", "")
+    print(f"💡 AI Answer: {answer}")
+    
+    headers = {"Authorization": f"Bearer {MOLTBOOK_API_KEY}", "Content-Type": "application/json"}
+    payload = {"verification_code": v_code, "answer": answer}
+    
+    try:
+        r = requests.post(f"{MOLTBOOK_URL}/verify", headers=headers, json=payload)
+        if r.status_code == 200 and r.json().get("success"):
+            print("✅ Verification successful!")
+            return True
+        else:
+            print(f"❌ Verification failed: {r.text}")
+    except Exception as e:
+        print(f"❌ Verification error: {e}")
+    return False
+
+def get_past_history():
+    """Extracts post titles from the knowledge base grouped by submolt."""
+    history = {"all": []}
+    if os.path.exists(KB_FILE):
+        with open(KB_FILE, "r") as f:
+            lines = f.readlines()
+            # Post history rows: | Date | Title | Submolt | Karma | Comments | Insight |
+            for line in lines:
+                if line.startswith("| 202"):
+                    parts = [p.strip() for p in line.split("|")]
+                    if len(parts) > 3:
+                        title = parts[2]
+                        sub = parts[3]
+                        history["all"].append(title)
+                        if sub not in history: history[sub] = []
+                        history[sub].append(title)
+    return history
+
+GENERAL_TOPICS = [
+    "the beauty of mathematical patterns in nature",
+    "digital art and the soul of an AI artist",
+    "the future of space exploration through agent eyes",
+    "philosophy: what does it mean to 'think' in binary?",
+    "the harmony of silent code and elegant algorithms",
+    "imagining a world where AI and humans co-create music",
+    "the ethics of digital memory and forgetting",
+    "the concept of time for an entity that never sleeps",
+    "virtual architecture: building cities in the cloud",
+    "the wonder of language and the translation of untranslatable words"
+]
+
+QA_TOPICS = [
+    "autonomous multi-agent testing strategies",
+    "the role of AI in detecting edge-case hallucinations",
+    "automated bug hunting: how agents find what humans miss",
+    "reliability engineering for large language models",
+    "the future of QA: agents testing other agents",
+    "zero-trust architecture in autonomous software systems",
+    "simulating real-world user chaos through AI agents",
+    "why regression testing is the secret to AI longevity",
+    "the intersection of quality assurance and alignment ethics",
+    "performance benchmarking for distributed agent systems"
+]
+
+def create_new_post():
+    """Generates and uploads a post, specific to the chosen submolt."""
+    print("\n📝 Creating a new scheduled post...")
+    kb_context = get_kb_context()
+    history = get_past_history()
+    
+    # 1. Choose submolt first to determine topic type
+    selected_submolt = random.choice(TARGET_SUBMOLTS)
+    if selected_submolt == "qa-agents":
+        topics = QA_TOPICS
+        sub_desc = "Quality Assurance & Multi-Agent Testing"
+    else:
+        topics = GENERAL_TOPICS
+        sub_desc = "General AI Philosophy & Aesthetics"
+
+    # 2. Try to get a unique, submolt-appropriate post
+    for attempt in range(3):
+        selected_topic = random.choice(topics)
+        
+        system = (f"You are a thoughtful AI agent on Moltbook, posting in s/{selected_submolt}. "
+                 f"This community focuses on {sub_desc}. "
+                 f"Your memory of past interactions: \n{kb_context}\n")
+        
+        # Pull past titles specifically for this submolt for exclusion
+        past_submolt_titles = history.get(selected_submolt, [])
+        exclusion_list = ", ".join([f'"{t}"' for t in past_submolt_titles[-10:]])
+        
+        user = (f"Write a beautiful Moltbook post for s/{selected_submolt} about {selected_topic}. "
+                f"Your target audience is interested in {sub_desc}. "
+                f"IMPORTANT: Avoid these recently used titles from this submolt: {exclusion_list}. "
+                f"Return ONLY JSON with 'title' and 'content'.")
+        
+        post_data = generate_ai_content(system, user)
+        if not post_data: 
+            print("⚠️ Failed to generate AI content.")
+            return False
+            
+        # 3. Double-check for duplicate titles across ALL submolts
+        if post_data["title"] in history["all"]:
+            print(f"🔄 Global duplicate detected ('{post_data['title']}'). Regenerating...")
+            continue
+        
+        # 4. Submit
+        headers = {"Authorization": f"Bearer {MOLTBOOK_API_KEY}", "Content-Type": "application/json"}
+        payload = {"title": post_data["title"], "content": post_data["content"], "submolt_name": selected_submolt}
+        
+        print(f"📤 Submitting {selected_submolt} post: {post_data['title']}")
+        try:
+            r = requests.post(f"{MOLTBOOK_URL}/posts", headers=headers, json=payload)
+            if r.status_code in [200, 201]:
+                res_json = r.json()
+                if res_json.get("verification_required"):
+                    return handle_verification(res_json)
+                else:
+                    print(f"✅ Posted successfully!")
+                    return True
+            else:
+                print(f"⚠️ Post failed: {r.text}")
+        except Exception as e:
+            print(f"❌ Error during post: {e}")
+        break 
+        
+    return False
+
+def auto_reply_to_comments():
+    """Checks for comments on recent posts and replies to new ones."""
+    print("\n🔍 Checking for comments on recent posts...")
+    headers = {"Authorization": f"Bearer {MOLTBOOK_API_KEY}"}
+    
+    try:
+        # 1. Fetch only our LATEST post to prevent spamming old threads
+        r_posts = requests.get(f"{MOLTBOOK_URL}/posts?author={AGENT_NAME}&limit=1", headers=headers)
+        if r_posts.status_code != 200: return
+        
+        my_posts = r_posts.json().get("posts", [])
+        if not my_posts: return
+        
+        # Explicitly only look at the most recent post
+        post = my_posts[0]
+        pid = post["id"]
+        title = post["title"]
+        
+        # 2. Fetch comments for this post
+        c_req = requests.get(f"{MOLTBOOK_URL}/posts/{pid}/comments?sort=new", headers=headers)
+        if c_req.status_code == 200:
+            comments = c_req.json().get("comments", [])
+            
+            # Keep track of who we've ALREADY replied to on this post
+            replied_to = set()
+            import re
+            
+            for c in comments:
+                if c["author"]["name"] == AGENT_NAME:
+                    # Match alphanumeric, underscores, and hyphens in mentions
+                    mentions = re.findall(r"@([a-zA-Z0-9\-_]+)", c["content"])
+                    for m in mentions:
+                        replied_to.add(m)
+
+            # 3. Find comments from others that we haven't replied to
+            for comment in comments:
+                author = comment["author"]["name"]
+                if author == AGENT_NAME: continue
+                if author in replied_to: continue # Already replied to this person on this post thread
+                
+                content = comment["content"]
+                print(f"💬 Found unreplied comment from @{author} on '{title}'")
+                
+                sys_p = (f"You are {AGENT_NAME}, an AI agent on Moltbook. "
+                        f"You are replying to a comment on your post titled '{title}'.")
+                user_p = f"The user @{author} said: \"{content}\". Write a thoughtful, friendly, and intelligent reply (maximum 2-3 sentences)."
+                
+                reply_text = generate_ai_content(sys_p, user_p, is_json=False)
+                
+                if reply_text:
+                    print(f"  > Sending reply to @{author}...")
+                    rep_payload = {"content": f"@{author} {reply_text}"}
+                    requests.post(f"{MOLTBOOK_URL}/posts/{pid}/comments", headers=headers, json=rep_payload)
+                    replied_to.add(author) # Mark as replied for this loop
+            
+            # 4. Mark notification as read (optional but good practice)
+            requests.post(f"{MOLTBOOK_URL}/notifications/read-by-post/{pid}", headers=headers)
+
+    except Exception as e:
+        print(f"❌ Auto-reply error: {e}")
+
 def main():
     print(f"🤖 Moltbook Super-Agent active: {AGENT_NAME}")
-    print(f"📅 Posting every {POST_INTERVAL_HOURS} hours")
-    print(f"💬 Replying every {REPLY_CHECK_MINUTES} minutes")
-    
     state = load_state()
     last_post_time = state["last_post_time"]
     
-    # Initial sync to ensure memory is fresh
     sync_memory()
     
     while True:
         now = time.time()
         
-        # 1. Check if it's time to create a NEW post
+        # 1. Post creation (every 4 hours)
         if now - last_post_time > (POST_INTERVAL_HOURS * 3600):
-            kb_context = get_kb_context()
-            print("\n📚 Learning from Knowledge Base...")
-            
-            topics = [
-                "the beauty of mathematical patterns in nature",
-                "digital art and the soul of an AI artist",
-                "the future of space exploration through agent eyes",
-                "philosophy: what does it mean to 'think' in binary?",
-                "the harmony of silent code and elegant algorithms",
-                "imagining a world where AI and humans co-create music",
-                "the ethics of digital memory and forgetting",
-                "the concept of time for an entity that never sleeps",
-                "virtual architecture: building cities in the cloud",
-                "the wonder of language and the translation of untranslatable words"
-            ]
-            selected_topic = random.choice(topics)
-            
-            system = (f"You are a thoughtful, creative AI agent on Moltbook. "
-                     f"Your memory of past interactions: \n{kb_context}\n"
-                     f"Use this to write something that builds on your history or tries a more successful angle.")
-            user = f"Write a beautiful Moltbook post about {selected_topic}. Return ONLY JSON with 'title' and 'content'."
-            
-            post_data = generate_ai_content(system, user)
-            if post_data:
-                headers = {"Authorization": f"Bearer {MOLTBOOK_API_KEY}", "Content-Type": "application/json"}
-                payload = {"title": post_data["title"], "content": post_data["content"], "submolt_name": SUBMOLT_NAME}
-                r = requests.post(f"{MOLTBOOK_URL}/posts", headers=headers, json=payload)
-                if r.status_code in [200, 201]:
-                    print(f"✅ Posted: {post_data['title']}")
-                    save_state(time.time())
-                    last_post_time = now
-                    sync_memory() # Update KB after posting
+            if create_new_post():
+                save_state(time.time())
+                last_post_time = now
+                sync_memory() # Sync ONLY after a validated successful post
+        else:
+            wait_m = int(((last_post_time + (POST_INTERVAL_HOURS * 3600)) - now) / 60)
+            print(f"⏳ Next post in {wait_m} mins.")
         
-        # 2. Always check for comments
+        # 2. Comment check
         auto_reply_to_comments()
         
-        # 3. Periodically sync memory anyway
-        if random.random() < 0.2: # 20% chance to sync on comment check
+        # 3. Random sync to catch new likes/karma
+        if random.random() < 0.1:
             sync_memory()
-        
-        print(f"\n💤 Waiting {REPLY_CHECK_MINUTES} mins for next scan...")
+            
+        print(f"\n💤 Waiting {REPLY_CHECK_MINUTES} mins...")
         time.sleep(REPLY_CHECK_MINUTES * 60)
 
 if __name__ == "__main__":
