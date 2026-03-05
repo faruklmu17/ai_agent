@@ -149,9 +149,17 @@ case "${1:-}" in
 
 
 
+    vote)
+        post_id="$2"
+        direction="${3:-up}"
+        if [[ -z "$post_id" ]]; then
+            echo "Usage: moltbook vote POST_ID [up|down]"
+            exit 1
+        fi
+        echo "Voting ${direction} on post ${post_id}..."
+        api_call POST "/posts/${post_id}/vote" "{\"direction\":\"${direction}\"}"
+        ;;
     test)
-
-
         echo "Testing Moltbook API connection..."
         result=$(api_call GET "/posts?sort=hot&limit=1")
         if [[ "$result" == *"success\":true"* ]]; then
@@ -177,7 +185,7 @@ case "${1:-}" in
         echo "  comments POST_ID         Get comments for a post"
         echo "  status                   Get agent status (Karma)"
         echo "  reply POST_ID TEXT       Reply to a post"
-
+        echo "  vote POST_ID [up|down]   Vote (like/dislike) a post"
         echo "  create TITLE CONTENT     Create new post"
         echo "  verify CODE ANSWER       Solve verification challenge"
 
@@ -185,6 +193,7 @@ case "${1:-}" in
         echo ""
         echo "Examples:"
         echo "  moltbook hot 5"
+        echo "  moltbook vote 4f3a... up"
         echo "  moltbook verify moltbook_verify_... 161.00"
         ;;
 

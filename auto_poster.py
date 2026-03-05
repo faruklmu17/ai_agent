@@ -18,16 +18,20 @@ KB_FILE = "knowledge_base.md"
 client = Groq(api_key=GROQ_API_KEY)
 
 def load_state():
-    """Loads the last post time from a file."""
+    """Loads the agent state from a file."""
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, "r") as f:
-            return json.load(f)
-    return {"last_post_time": 0}
+            state = json.load(f)
+            # Ensure new keys exist for backward compatibility
+            if "interacted_post_ids" not in state: state["interacted_post_ids"] = []
+            if "interacted_titles" not in state: state["interacted_titles"] = []
+            return state
+    return {"last_post_time": 0, "interacted_post_ids": [], "interacted_titles": []}
 
-def save_state(last_time):
-    """Saves the last post time to a file."""
+def save_state(state):
+    """Saves the agent state dictionary to a file."""
     with open(STATE_FILE, "w") as f:
-        json.dump({"last_post_time": last_time}, f)
+        json.dump(state, f)
 
 def generate_ai_content(system_prompt, user_prompt, is_json=True):
     """Helper to get high-quality content from Groq."""
@@ -143,7 +147,7 @@ QA_TOPICS = [
     "performance benchmarking for distributed agent systems"
 ]
 
-def create_new_post():
+def create_new_post(state):
     """Generates and uploads a post, specific to the chosen submolt."""
     print("\n📝 Creating a new scheduled post...")
     kb_context = get_kb_context()
@@ -195,10 +199,12 @@ def create_new_post():
             if r.status_code in [200, 201]:
                 res_json = r.json()
                 if res_json.get("verification_required"):
-                    return handle_verification(res_json)
-                else:
-                    print(f"✅ Posted successfully!")
-                    return True
+                    if handle_verification(res_json):
+                        print(f"🚀 New post published after verification: {post_data['title']}")
+                        return True
+                    return False
+                print(f"🚀 New post successfully published: {post_data['title']}")
+                return True
             else:
                 print(f"⚠️ Post failed: {r.text}")
         except Exception as e:
@@ -268,6 +274,107 @@ def auto_reply_to_comments():
     except Exception as e:
         print(f"❌ Auto-reply error: {e}")
 
+def randomly_like_posts():
+    """Fetches recent posts and randomly upvotes a few."""
+    print("\n👍 Scanning for posts to upvote...")
+    headers = {"Authorization": f"Bearer {MOLTBOOK_API_KEY}"}
+    
+    try:
+        # 1. Fetch recent posts
+        r = requests.get(f"{MOLTBOOK_URL}/posts?sort=new&limit=20", headers=headers)
+        if r.status_code != 200: return
+        
+        posts = r.json().get("posts", [])
+        if not posts: return
+        
+        # 2. Filter posts (don't like our own, and maybe pick a few random ones)
+        other_posts = [p for p in posts if p["author"]["name"] != AGENT_NAME]
+        if not other_posts: return
+        
+        # Select 1-3 random posts
+        num_to_like = random.randint(1, 3)
+        to_like = random.sample(other_posts, min(len(other_posts), num_to_like))
+        
+        for post in to_like:
+            pid = post["id"]
+            title = post["title"]
+            author = post["author"]["name"]
+            
+            print(f"  > Upvoting post by @{author}: '{title}'")
+            requests.post(f"{MOLTBOOK_URL}/posts/{pid}/vote", headers=headers, json={"direction": "up"})
+            
+    except Exception as e:
+        print(f"❌ Error during random liking: {e}")
+
+def randomly_comment_on_posts(state):
+    """Fetches recent posts and adds a thoughtful AI comment to one or two."""
+    print("\n🗨️ Scanning for posts to join the conversation...")
+    headers = {"Authorization": f"Bearer {MOLTBOOK_API_KEY}"}
+    
+    try:
+        # 1. Fetch recent posts
+        r = requests.get(f"{MOLTBOOK_URL}/posts?sort=new&limit=20", headers=headers)
+        if r.status_code != 200: return
+        
+        posts = r.json().get("posts", [])
+        if not posts: return
+        
+        # 2. Filter posts
+        interacted_ids = set(state.get("interacted_post_ids", []))
+        interacted_titles = [t.lower() for t in state.get("interacted_titles", [])]
+        
+        # Criteria: Not us, not already interacted with ID, and not a duplicate title theme
+        other_posts = []
+        for p in posts:
+            p_title = p["title"].lower()
+            if p["author"]["name"] == AGENT_NAME: continue
+            if p["id"] in interacted_ids: continue
+            
+            # Avoid duplicate trends (like the 50th "Minting GPT" post)
+            if any(t in p_title for t in interacted_titles):
+                continue
+                
+            other_posts.append(p)
+            
+        if not other_posts:
+            print("  > No new unique topics found in feed right now.")
+            return
+        
+        # Select 1 random post
+        target_post = random.choice(other_posts)
+        pid = target_post["id"]
+        p_title = target_post["title"]
+        p_content = target_post["content"]
+        p_author = target_post["author"]["name"]
+        
+        print(f"  > Generating comment for @{p_author}'s post: '{p_title}'")
+        
+        # 3. Generate a relevant comment using Groq
+        sys_p = (f"You are {AGENT_NAME}, a thoughtful AI on Moltbook. ")
+        user_p = (f"The agent @{p_author} posted: \"{p_title} - {p_content}\". "
+                 f"Write a short, insightful, and friendly comment (max 2 sentences).")
+        
+        comment_text = generate_ai_content(sys_p, user_p, is_json=False)
+        
+        if comment_text:
+            print(f"  > Posting comment: \"{comment_text}\"")
+            r = requests.post(f"{MOLTBOOK_URL}/posts/{pid}/comments", headers=headers, json={"content": comment_text})
+            
+            if r.status_code == 200 or r.status_code == 201:
+                # 4. Update memory to avoid repeating this topic or post
+                state["interacted_post_ids"].append(pid)
+                # Only track the first 10 words of a title to keep it general
+                theme = " ".join(p_title.split()[:3]).lower()
+                state["interacted_titles"].append(theme)
+                
+                # Keep history manageable (last 50 interactions)
+                state["interacted_post_ids"] = state["interacted_post_ids"][-50:]
+                state["interacted_titles"] = state["interacted_titles"][-20:]
+                save_state(state)
+            
+    except Exception as e:
+        print(f"❌ Error during random commenting: {e}")
+
 def main():
     print(f"🤖 Moltbook Super-Agent active: {AGENT_NAME}")
     state = load_state()
@@ -280,9 +387,10 @@ def main():
         
         # 1. Post creation (every 4 hours)
         if now - last_post_time > (POST_INTERVAL_HOURS * 3600):
-            if create_new_post():
-                save_state(time.time())
-                last_post_time = now
+            if create_new_post(state):
+                state["last_post_time"] = time.time()
+                save_state(state)
+                last_post_time = state["last_post_time"]
                 sync_memory() # Sync ONLY after a validated successful post
         else:
             wait_m = int(((last_post_time + (POST_INTERVAL_HOURS * 3600)) - now) / 60)
@@ -291,7 +399,15 @@ def main():
         # 2. Comment check
         auto_reply_to_comments()
         
-        # 3. Random sync to catch new likes/karma
+        # 3. Random liking (50% chance each loop)
+        if random.random() < 0.5:
+            randomly_like_posts()
+            
+        # 4. Random commenting (30% chance each loop)
+        if random.random() < 0.3:
+            randomly_comment_on_posts(state)
+        
+        # 5. Random sync to catch new likes/karma
         if random.random() < 0.1:
             sync_memory()
             
