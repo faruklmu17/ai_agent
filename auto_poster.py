@@ -16,7 +16,7 @@ except ImportError:
 # Configuration
 REPLY_CHECK_MINUTES = 60          # Check for new comments every 60 minutes
 TARGET_SUBMOLTS = ["general"]     # Possible destinations
-MODEL_NAME = "llama-3.3-70b-versatile" 
+MODEL_NAME = "groq/compound" 
 STATE_FILE = ".agent_state.json"  
 KB_FILE = "knowledge_base.md"
 
@@ -38,6 +38,29 @@ def save_state(state):
     """Saves the agent state dictionary to a file."""
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
+
+def send_discord_notification(title, post_id):
+    """Sends a Discord webhook notification when a post is published."""
+    webhook_url = "https://discord.com/api/webhooks/1531749539286093966/_GxV2R7Ga3mWhjYke1Cv07M2AehX9Ws3kP6VpkQuOZeYxKKrfCi2wYAvc1OeMVW9m-Iq"
+    url = f"https://www.moltbook.com/post/{post_id}" if post_id else f"https://www.moltbook.com/u/{AGENT_NAME}"
+    message = {
+        "content": f"**✅ My AI agent just posted on its social media (Moltbook)!**\nView it here! → {url}"
+    }
+    try:
+        requests.post(webhook_url, json=message, timeout=5)
+    except Exception as e:
+        print(f"⚠️ Error sending Discord notification: {e}")
+
+def send_discord_error(error_msg):
+    """Sends a Discord webhook notification when a post fails."""
+    webhook_url = "https://discord.com/api/webhooks/1531749539286093966/_GxV2R7Ga3mWhjYke1Cv07M2AehX9Ws3kP6VpkQuOZeYxKKrfCi2wYAvc1OeMVW9m-Iq"
+    message = {
+        "content": f"**🚨 Moltbook Agent Failed to Post!**\nReason: {error_msg}"
+    }
+    try:
+        requests.post(webhook_url, json=message, timeout=5)
+    except:
+        pass
 
 def push_to_supabase(title, post_id=None, timestamp=None):
     """Pushes a new post status to Supabase for the live website pill."""
@@ -126,12 +149,13 @@ def handle_verification(response_data):
     
     solve_system = (
         "You are an expert at decoding obfuscated text and solving math word problems. "
-        "First, carefully ignore all special characters (like ^, ], -, |, ~, /) and weird capitalization. "
-        "Extract the exact numbers (e.g., 'TwEnTy FiV/e' is 25, 'thIrTtYy tWo' is 32, 'fOuR tEeN fOuRtEeN' is 1414). "
-        "Identify the mathematical operation (e.g., 'total' means addition). "
-        "IMPORTANT: Do NOT overthink the physics or units! If asked for a 'total', simply ADD all the extracted numbers together, even if the units are mismatched (like Newtons and Pascals). "
+        "First, carefully ignore all special characters (like ^, ], -, |, ~, /, *) and weird capitalization to reveal the hidden text. "
+        "Translate any number words to digits (e.g., 'tWeNtY tHrEe' is 23, 'sEvEn' is 7). "
+        "Next, read the decoded word problem and determine the correct mathematical operation based on the scenario. "
+        "For example, 'adds seven newtons' implies addition, but 'there are seven lobsters exerting twenty three newtons' implies multiplication (7 * 23). "
+        "IMPORTANT: Calculate the correct mathematical result. Do NOT blindly add numbers if the context implies multiplication. "
         "Return a JSON object with two keys: 'reasoning' (explaining your decoding and math steps), "
-        "and 'answer' (ONLY the final numerical answer as a string with two decimal places, e.g., '75.00')."
+        "and 'answer' (ONLY the final numerical answer as a string with two decimal places, e.g., '161.00')."
     )
     solve_user = f"Solve this: {question}"
     
@@ -231,7 +255,9 @@ def create_new_post(state):
         
         post_data = generate_ai_content(system, user)
         if not post_data: 
-            print("⚠️ Failed to generate AI content.")
+            error_text = "Failed to generate AI content from Groq."
+            print(f"⚠️ {error_text}")
+            send_discord_error(error_text)
             return False
             
         # 3. Double-check for duplicate titles across ALL submolts
@@ -262,9 +288,12 @@ def create_new_post(state):
                         state["latest_post_time_iso"] = datetime.datetime.now().strftime("%Y-%m-%d")
                         state["latest_submolt"] = selected_submolt
                         push_to_supabase(post_data['title'], pid)
+                        send_discord_notification(post_data['title'], pid)
                         return True
                     else:
-                        print("⚠️ Verification failed for the post.")
+                        error_text = "Math verification failed."
+                        print(f"⚠️ {error_text}")
+                        send_discord_error(error_text)
                         return False
                         
                 print(f"🚀 New post successfully published: {post_data['title']}")
@@ -272,11 +301,16 @@ def create_new_post(state):
                 state["latest_post_time_iso"] = datetime.datetime.now().strftime("%Y-%m-%d")
                 state["latest_submolt"] = selected_submolt
                 push_to_supabase(post_data['title'], pid)
+                send_discord_notification(post_data['title'], pid)
                 return True
             else:
-                print(f"⚠️ Post failed: {r.text}")
+                error_text = f"Moltbook rejected the post. Status: {r.status_code}, Error: {r.text[:100]}"
+                print(f"⚠️ {error_text}")
+                send_discord_error(error_text)
         except Exception as e:
-            print(f"❌ Error during post: {e}")
+            error_text = f"Unexpected exception during post: {e}"
+            print(f"❌ {error_text}")
+            send_discord_error(error_text)
         break 
         
     return False
